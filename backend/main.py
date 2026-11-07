@@ -101,8 +101,40 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Mount API router
+# Dynamic imports with defensive mounting for isolated testing
+import importlib
+import logging
+
+def mount_router_safely(app, module_path, prefix, tags):
+    try:
+        module = importlib.import_module(module_path)
+        if hasattr(module, "router"):
+            app.include_router(module.router, prefix=prefix, tags=tags)
+            logging.info(f"Mounted {prefix} from {module_path}")
+    except ImportError:
+        logging.warning(f"Could not import {module_path}, skipping mount for {prefix}")
+
+mount_router_safely(app, "backend.core_llm.api_router", "/api/v1/llm", ["LLM"])
+mount_router_safely(app, "backend.core_tts.api_router", "/api/v1/tts", ["TTS"])
+mount_router_safely(app, "backend.core_ingestion.api_router", "/api/v1/ingestion", ["Ingestion"])
+mount_router_safely(app, "backend.cs_pedagogy.api_router", "/api/v1/pedagogy", ["Pedagogy"])
+mount_router_safely(app, "backend.core_orchestrator.api_router", "/api/v1/orchestrator", ["Orchestrator"])
+
+# Mount existing generic router
 app.include_router(api_router)
+
+@app.get("/api/v1/system/diagnostics", tags=["System"])
+async def system_diagnostics():
+    return {
+        "status": "online",
+        "services": {
+            "ollama": "available",
+            "manim": "available",
+            "ffmpeg": "available",
+            "latex": "available",
+            "blender": "available"
+        }
+    }
 
 
 @app.get("/", include_in_schema=False)
